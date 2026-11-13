@@ -151,7 +151,7 @@
 
             // ★ 3. バックエンドのAPIエンドポイントURLを設定
             // ローカルテスト時は http://localhost:3000/api/select-machine などに変更してください
-            const backendUrl = "https://your-backend-server.com/api/select-machine";
+            const backendUrl = "http://172.20.10.5:3000/api/select-machine";
 
             try {
                 const response = await fetch(backendUrl, {
