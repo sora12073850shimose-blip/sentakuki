@@ -1,99 +1,186 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>洗濯機利用登録</title>
-  <!-- LIFF SDKの読み込み -->
-  <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-  <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-      text-align: center;
-      background-color: #f5f5f5;
-    }
-    .card {
-      background: white;
-      padding: 20px;
-      border-radius: 10px;
-      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-      max-width: 400px;
-      margin: 0 auto;
-    }
-    .status {
-      font-weight: bold;
-      color: #06C755; /* LINEグリーン */
-      margin-bottom: 15px;
-    }
-    .user-id-box {
-      background: #eee;
-      padding: 10px;
-      border-radius: 5px;
-      word-break: break-all;
-      font-family: monospace;
-      font-size: 14px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>洗濯機利用登録</title>
+    <!-- LINE LIFF SDK の読み込み -->
+    <script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #f5f5f7;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .card {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        h2 {
+            margin-top: 0;
+            color: #333;
+        }
+        .status {
+            font-weight: bold;
+            color: #06c755;
+            margin-bottom: 16px;
+        }
+        .info-box {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            word-break: break-all;
+            margin-bottom: 16px;
+            text-align: left;
+        }
+        .btn {
+            background-color: #06c755;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+        }
+        .btn:active {
+            background-color: #05b34b;
+        }
+        .btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .message {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #333;
+            line-height: 1.4;
+        }
+    </style>
 </head>
 <body>
 
-  <div class="card">
-    <h2>洗濯機 通知登録</h2>
-    <p id="status" class="status">LIFFを初期化中...</p>
-    
-    <div>
-      <p>あなたのLINE User ID:</p>
-      <div id="userIdDisplay" class="user-id-box">取得待機中...</div>
+    <div class="card">
+        <h2>洗濯機 通知登録</h2>
+        <div id="status" class="status">読み込み中...</div>
+        
+        <div class="info-box" id="info-box">
+            ユーザーIDと洗濯機情報を取得しています...
+        </div>
+
+        <button id="submit-btn" class="btn" style="display: none;" onclick="selectMachine()">この洗濯機を使う</button>
+        
+        <div id="feedback-message" class="message"></div>
     </div>
-  </div>
 
-  <script>
-    // ★ここにLINE Developersで発行した自分のLIFF IDを入れてください
-    const MY_LIFF_ID = "2012570669-ilYwaKU1";
+    <script>
+        // ★ご自身のLIFF IDに書き換えてください
+        const MY_LIFF_ID = "2012570669-ilYwaKU1";
 
-    // ページ読み込み時に実行
-    window.onload = function() {
-      initializeLiff(MY_LIFF_ID);
-    };
+        let currentUserId = "";
+        let currentDeviceId = "machine_01"; // デフォルト値
 
-    async function initializeLiff(liffId) {
-      const statusEl = document.getElementById('status');
-      const userIdEl = document.getElementById('userIdDisplay');
+        window.onload = function() {
+            // 1. URLのクエリパラメータから device_id を取得 (例: ?device_id=machine_02)
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryDeviceId = urlParams.get('device_id');
+            if (queryDeviceId) {
+                currentDeviceId = queryDeviceId;
+            }
 
-      try {
-        // 1. LIFFの初期化
-        await liff.init({ liffId: liffId });
+            // LIFF初期化の実行
+            initializeLiff(MY_LIFF_ID);
+        };
 
-        // 2. ログイン状態の確認
-        if (!liff.isLoggedIn()) {
-          statusEl.innerText = "LINEにログインします...";
-          // 未ログインならLINEログイン画面へリダイレクト（外部ブラウザ対策）
-          liff.login();
-          return;
+        function initializeLiff(liffId) {
+            liff.init({
+                liffId: liffId
+            }).then(() => {
+                // ログイン状態のチェック
+                if (!liff.isLoggedIn()) {
+                    liff.login();
+                } else {
+                    loadUserData();
+                }
+            }).catch((err) => {
+                document.getElementById("status").innerText = "初期化エラー";
+                document.getElementById("info-box").innerText = "エラー内容: " + err;
+            });
         }
 
-        // 3. プロフィール情報の取得（ここで「U...」のUser IDが取れる）
-        statusEl.innerText = "ユーザー情報を取得中...";
-        const profile = await liff.getProfile();
-        const userId = profile.userId;
+        function loadUserData() {
+            liff.getProfile().then(profile => {
+                currentUserId = profile.userId;
 
-        // 4. 画面に表示
-        statusEl.innerText = "ログイン完了！";
-        userIdEl.innerText = userId;
+                // 画面に取得情報を表示
+                document.getElementById("status").innerText = "ログイン完了！";
+                document.getElementById("info-box").innerHTML = 
+                    `<strong>LINE User ID:</strong><br>${currentUserId}<br><br>` +
+                    `<strong>対象の洗濯機:</strong> ${currentDeviceId}`;
 
-        // コンソールにも出力（デバッグ用）
-        console.log("取得したUser ID:", userId);
-        console.log("表示名:", profile.displayName);
+                // 利用開始ボタンを表示する
+                document.getElementById("submit-btn").style.display = "block";
 
-      } catch (error) {
-        statusEl.style.color = "red";
-        statusEl.innerText = "エラーが発生しました";
-        userIdEl.innerText = error.message;
-        console.error("LIFF Error:", error);
-      }
-    }
-  </script>
+            }).catch((err) => {
+                document.getElementById("status").innerText = "プロフィール取得エラー";
+                document.getElementById("info-box").innerText = err;
+            });
+        }
 
+        // 2. 「この洗濯機を使う」ボタンを押したときの処理
+        async function selectMachine() {
+            const submitBtn = document.getElementById("submit-btn");
+            const feedbackMsg = document.getElementById("feedback-message");
+            
+            submitBtn.disabled = true;
+            submitBtn.innerText = "送信中...";
+            feedbackMsg.innerText = "";
+
+            // ★ 3. バックエンドのAPIエンドポイントURLを設定
+            // ローカルテスト時は http://localhost:3000/api/select-machine などに変更してください
+            const backendUrl = "https://your-backend-server.com/api/select-machine";
+
+            try {
+                const response = await fetch(backendUrl, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        user_id: currentUserId,
+                        device_id: currentDeviceId
+                    })
+                });
+
+                if (response.ok) {
+                    // 4. 送信成功後のUIフィードバック
+                    feedbackMsg.style.color = "#06c755";
+                    feedbackMsg.innerText = "洗濯機の利用を開始しました！（終了時にLINEでお知らせします）";
+                    submitBtn.innerText = "登録完了";
+                } else {
+                    throw new Error("サーバーからの応答が異常です。");
+                }
+            } catch (error) {
+                console.error(error);
+                feedbackMsg.style.color = "#ff3b30";
+                feedbackMsg.innerText = "送信に失敗しました。もう一度お試しください。";
+                submitBtn.disabled = false;
+                submitBtn.innerText = "この洗濯機を使う";
+            }
+        }
+    </script>
 </body>
 </html>
